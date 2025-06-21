@@ -220,7 +220,23 @@
                     typingIndicator.style.display = 'none';
                     
                     // 添加机器人回复到聊天界面
-                    if (data && data.response) {
+                    if (data && Array.isArray(data) && data.length > 0) {
+                        // 如果响应是数组，取第一个元素
+                        const responseData = data[0];
+                        if (responseData.response) {
+                            addMessage(responseData.response, 'bot');
+                            
+                            // 更新聊天历史
+                            if (responseData.history) {
+                                chatHistory = responseData.history;
+                            }
+                        } else {
+                            const errorMsg = '响应格式不正确: ' + JSON.stringify(responseData);
+                            console.error(errorMsg);
+                            addMessage('抱歉，我无法处理您的请求。响应格式不正确。', 'bot');
+                        }
+                    } else if (data && data.response) {
+                        // 如果响应是单个对象
                         addMessage(data.response, 'bot');
                         
                         // 更新聊天历史
