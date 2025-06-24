@@ -424,20 +424,51 @@
                         timestamp: new Date().toISOString()
                     })
                 });
-                
+
+                console.log('响应状态:', response.status);
+                console.log('响应头:', response.headers);
+
                 if (!response.ok) {
                     throw new Error(`HTTP错误! 状态: ${response.status}`);
                 }
-                
-                const data = await response.json();
-                hideTypingIndicator();
-                
-                if (data.success) {
-                    await displayExpertResponses(data);
-                } else {
-                    addErrorMessage(data.message || '处理请求时出现错误');
+
+                const responseText = await response.text();
+                console.log('原始响应:', responseText);
+
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('JSON解析错误:', parseError);
+                    console.log('响应内容:', responseText);
+
+                    // 检查是否是n8n的标准响应格式
+                    if (responseText.includes('Workflow was started') || responseText.includes('workflow')) {
+                        addErrorMessage('工作流已启动但响应格式不正确。请检查n8n工作流配置。');
+                        addDebugInfo('原始响应: ' + responseText);
+                        return;
+                    }
+
+                    throw new Error(`响应不是有效的JSON格式: ${responseText.substring(0, 100)}...`);
                 }
-                
+
+                hideTypingIndicator();
+                console.log('解析后的数据:', data);
+
+                if (data && data.success) {
+                    await displayExpertResponses(data);
+                } else if (data && data.message) {
+                    addErrorMessage(data.message);
+                } else {
+                    // 处理可能的n8n默认响应格式
+                    if (typeof data === 'object' && data !== null) {
+                        addErrorMessage('收到了意外的响应格式，请检查工作流配置');
+                        addDebugInfo('响应数据: ' + JSON.stringify(data, null, 2));
+                    } else {
+                        addErrorMessage('处理请求时出现错误');
+                    }
+                }
+
             } catch (error) {
                 console.error('发送消息时出错:', error);
                 hideTypingIndicator();
@@ -574,7 +605,20 @@
                     ❌ ${escapeHtml(message)}
                 </div>
             `;
-            
+
+            chatMessages.insertBefore(messageElement, typingIndicator);
+            scrollToBottom();
+        }
+
+        function addDebugInfo(info) {
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message';
+            messageElement.innerHTML = `
+                <div class="round-summary" style="background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%); font-size: 12px; font-family: monospace;">
+                    🔍 调试信息: ${escapeHtml(info)}
+                </div>
+            `;
+
             chatMessages.insertBefore(messageElement, typingIndicator);
             scrollToBottom();
         }

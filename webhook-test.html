@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webhook 连接测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .title {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e1e8ed;
+            border-radius: 10px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        
+        .button {
+            background: linear-gradient(135deg, #4a6fa5 0%, #166ba0 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(74, 111, 165, 0.4);
+        }
+        
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .result.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .result.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .result.info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-success { background: #28a745; }
+        .status-error { background: #dc3545; }
+        .status-warning { background: #ffc107; }
+        .status-info { background: #17a2b8; }
+        
+        .quick-tests {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .quick-test {
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .quick-test:hover {
+            border-color: #4a6fa5;
+            background: #f8f9fa;
+        }
+        
+        .quick-test-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .quick-test-desc {
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">🔧 Webhook 连接测试工具</h1>
+            <p class="subtitle">诊断和测试n8n工作流连接问题</p>
+        </div>
+        
+        <div class="test-section">
+            <h2 class="section-title">📡 连接配置</h2>
+            <div class="input-group">
+                <label for="webhook-url">Webhook URL:</label>
+                <input type="text" id="webhook-url" value="https://zhangqike-n8n-free.hf.space/webhook/multi-agent-chat" placeholder="输入您的n8n webhook URL">
+            </div>
+            <div class="input-group">
+                <label for="test-message">测试消息:</label>
+                <textarea id="test-message" placeholder="输入测试消息">我想开发一个在线教育平台，请帮我分析</textarea>
+            </div>
+            <button class="button" onclick="testWebhook()">🚀 测试连接</button>
+        </div>
+        
+        <div class="test-section">
+            <h2 class="section-title">⚡ 快速测试</h2>
+            <div class="quick-tests">
+                <div class="quick-test" onclick="quickTest('ping')">
+                    <div class="quick-test-title">🏓 Ping测试</div>
+                    <div class="quick-test-desc">测试基本连接</div>
+                </div>
+                <div class="quick-test" onclick="quickTest('simple')">
+                    <div class="quick-test-title">💬 简单消息</div>
+                    <div class="quick-test-desc">发送简单测试消息</div>
+                </div>
+                <div class="quick-test" onclick="quickTest('expert')">
+                    <div class="quick-test-title">👨‍💼 指定专家</div>
+                    <div class="quick-test-desc">测试@专家功能</div>
+                </div>
+                <div class="quick-test" onclick="quickTest('complex')">
+                    <div class="quick-test-title">🧠 复杂问题</div>
+                    <div class="quick-test-desc">测试多轮讨论</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2 class="section-title">📊 测试结果</h2>
+            <div id="test-results">
+                <div class="result info">等待测试...</div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2 class="section-title">🔍 诊断信息</h2>
+            <div id="diagnostic-info">
+                <div class="result info">点击测试按钮开始诊断...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const testMessages = {
+            ping: "ping",
+            simple: "你好，请简单介绍一下自己",
+            expert: "@市场专家 请分析一下在线教育市场",
+            complex: "我想开发一个AI驱动的在线教育平台，请从市场、技术、法律、财务等多个角度进行全面分析"
+        };
+        
+        async function testWebhook() {
+            const url = document.getElementById('webhook-url').value.trim();
+            const message = document.getElementById('test-message').value.trim();
+            
+            if (!url) {
+                showResult('error', '请输入Webhook URL');
+                return;
+            }
+            
+            if (!message) {
+                showResult('error', '请输入测试消息');
+                return;
+            }
+            
+            showResult('info', '正在测试连接...');
+            showDiagnostic('info', '开始连接测试...');
+            
+            const startTime = Date.now();
+            
+            try {
+                // 显示请求信息
+                const requestData = {
+                    message: message,
+                    sessionId: 'test-session-' + Date.now(),
+                    timestamp: new Date().toISOString()
+                };
+                
+                showDiagnostic('info', `发送请求到: ${url}\n请求数据: ${JSON.stringify(requestData, null, 2)}`);
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const responseTime = Date.now() - startTime;
+                
+                showDiagnostic('info', `响应时间: ${responseTime}ms\n响应状态: ${response.status} ${response.statusText}\n响应头: ${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const responseText = await response.text();
+                showDiagnostic('info', `原始响应内容:\n${responseText}`);
+                
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                    showDiagnostic('success', `JSON解析成功:\n${JSON.stringify(data, null, 2)}`);
+                } catch (parseError) {
+                    showDiagnostic('error', `JSON解析失败: ${parseError.message}\n原始内容: ${responseText}`);
+                    
+                    if (responseText.includes('Workflow was started')) {
+                        showResult('warning', '⚠️ 工作流已启动但响应格式不正确\n\n可能的问题:\n1. 工作流没有正确的输出格式\n2. 缺少"Combine and format responses"节点\n3. 工作流配置有误\n\n建议:\n1. 检查工作流是否正确导入\n2. 确认最后一个节点输出JSON格式\n3. 查看n8n执行日志');
+                        return;
+                    }
+                    
+                    throw new Error(`响应不是有效的JSON: ${parseError.message}`);
+                }
+                
+                // 分析响应数据
+                if (data && data.success) {
+                    showResult('success', `✅ 连接测试成功!\n\n响应时间: ${responseTime}ms\n专家数量: ${data.experts ? data.experts.length : 0}\n讨论轮次: ${data.round || 'N/A'}/${data.maxRounds || 'N/A'}\n\n专家回复:\n${data.experts ? data.experts.map(e => `- ${e.expert}: ${e.content.substring(0, 100)}...`).join('\n') : '无专家回复'}`);
+                } else {
+                    showResult('warning', `⚠️ 工作流响应但格式异常\n\n响应数据:\n${JSON.stringify(data, null, 2)}`);
+                }
+                
+            } catch (error) {
+                showResult('error', `❌ 连接测试失败\n\n错误信息: ${error.message}\n响应时间: ${Date.now() - startTime}ms\n\n可能的原因:\n1. n8n服务器未运行\n2. Webhook URL不正确\n3. 工作流未激活\n4. 网络连接问题\n5. CORS配置问题`);
+                showDiagnostic('error', `连接错误: ${error.message}\n错误堆栈: ${error.stack || 'N/A'}`);
+            }
+        }
+        
+        function quickTest(type) {
+            const message = testMessages[type];
+            if (message) {
+                document.getElementById('test-message').value = message;
+                testWebhook();
+            }
+        }
+        
+        function showResult(type, message) {
+            const resultDiv = document.getElementById('test-results');
+            const statusClass = type === 'success' ? 'status-success' : 
+                               type === 'error' ? 'status-error' : 
+                               type === 'warning' ? 'status-warning' : 'status-info';
+            
+            resultDiv.innerHTML = `
+                <div class="result ${type}">
+                    <span class="status-indicator ${statusClass}"></span>
+                    ${message}
+                </div>
+            `;
+        }
+        
+        function showDiagnostic(type, message) {
+            const diagnosticDiv = document.getElementById('diagnostic-info');
+            const timestamp = new Date().toLocaleTimeString();
+            const statusClass = type === 'success' ? 'status-success' : 
+                               type === 'error' ? 'status-error' : 
+                               type === 'warning' ? 'status-warning' : 'status-info';
+            
+            diagnosticDiv.innerHTML = `
+                <div class="result ${type}">
+                    <span class="status-indicator ${statusClass}"></span>
+                    [${timestamp}] ${message}
+                </div>
+            `;
+        }
+        
+        // 页面加载时显示当前配置
+        document.addEventListener('DOMContentLoaded', function() {
+            showDiagnostic('info', `页面加载完成\n当前时间: ${new Date().toLocaleString()}\n用户代理: ${navigator.userAgent}`);
+        });
+    </script>
+</body>
+</html>
