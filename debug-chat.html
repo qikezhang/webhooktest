@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>调试版聊天室</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .user-message {
+            background: #e3f2fd;
+            text-align: right;
+        }
+        .expert-message {
+            background: #f5f5f5;
+            border-left: 4px solid #2196f3;
+        }
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #f44336;
+        }
+        .debug-info {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        input, textarea, button {
+            margin: 5px 0;
+            padding: 10px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            background: #2196f3;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 调试版聊天室</h1>
+    
+    <div>
+        <h3>API配置</h3>
+        <input type="password" id="api-key" placeholder="输入OpenRouter API密钥">
+        <button onclick="saveApiKey()">保存API密钥</button>
+    </div>
+    
+    <div>
+        <h3>测试消息</h3>
+        <textarea id="message-input" placeholder="输入测试消息" rows="3">你好，请简单介绍一下自己</textarea>
+        <button id="send-button" onclick="testAPI()" disabled>测试API调用</button>
+    </div>
+    
+    <div id="messages"></div>
+
+    <script>
+        let apiKey = null;
+        const messagesDiv = document.getElementById('messages');
+        const sendButton = document.getElementById('send-button');
+        
+        // 加载保存的API密钥
+        window.addEventListener('load', function() {
+            const savedKey = localStorage.getItem('openrouter_api_key');
+            if (savedKey) {
+                apiKey = savedKey;
+                document.getElementById('api-key').value = savedKey;
+                sendButton.disabled = false;
+                addMessage('✅ API密钥已加载', 'debug-info');
+            }
+        });
+        
+        function saveApiKey() {
+            const key = document.getElementById('api-key').value.trim();
+            if (!key) {
+                addMessage('❌ 请输入有效的API密钥', 'error-message');
+                return;
+            }
+            
+            apiKey = key;
+            localStorage.setItem('openrouter_api_key', key);
+            sendButton.disabled = false;
+            addMessage('✅ API密钥已保存', 'debug-info');
+        }
+        
+        async function testAPI() {
+            if (!apiKey) {
+                addMessage('❌ 请先配置API密钥', 'error-message');
+                return;
+            }
+            
+            const message = document.getElementById('message-input').value.trim();
+            if (!message) {
+                addMessage('❌ 请输入测试消息', 'error-message');
+                return;
+            }
+            
+            addMessage(`👤 用户: ${message}`, 'user-message');
+            sendButton.disabled = true;
+            sendButton.textContent = '测试中...';
+            
+            try {
+                addMessage('🔍 开始API调试...', 'debug-info');
+                
+                // 测试基本的fetch调用
+                addMessage('📡 测试网络连接...', 'debug-info');
+                
+                const testResponse = await fetch('https://openrouter.ai/api/v1/models', {
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                });
+                
+                addMessage(`📊 模型列表API状态: ${testResponse.status}`, 'debug-info');
+                
+                if (!testResponse.ok) {
+                    throw new Error(`API认证失败: ${testResponse.status} ${testResponse.statusText}`);
+                }
+                
+                // 测试聊天API
+                addMessage('💬 测试聊天API...', 'debug-info');
+                
+                const chatResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': window.location.origin
+                    },
+                    body: JSON.stringify({
+                        model: 'deepseek/deepseek-chat-v3-0324:free',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: '你是一个有用的助手，请用中文简洁回复。'
+                            },
+                            {
+                                role: 'user',
+                                content: message
+                            }
+                        ],
+                        stream: false,  // 先测试非流式
+                        temperature: 0.7,
+                        max_tokens: 500
+                    })
+                });
+                
+                addMessage(`📊 聊天API状态: ${chatResponse.status}`, 'debug-info');
+                
+                if (!chatResponse.ok) {
+                    const errorText = await chatResponse.text();
+                    throw new Error(`聊天API失败: ${chatResponse.status} ${chatResponse.statusText}\n${errorText}`);
+                }
+                
+                const result = await chatResponse.json();
+                addMessage(`🤖 AI回复: ${result.choices[0].message.content}`, 'expert-message');
+                
+                // 如果非流式成功，测试流式
+                addMessage('🌊 测试流式API...', 'debug-info');
+                await testStreamingAPI(message);
+                
+            } catch (error) {
+                console.error('API测试失败:', error);
+                addMessage(`❌ 错误: ${error.message}`, 'error-message');
+                addMessage(`🔍 错误类型: ${error.name}`, 'debug-info');
+                addMessage(`📍 错误堆栈: ${error.stack}`, 'debug-info');
+            } finally {
+                sendButton.disabled = false;
+                sendButton.textContent = '测试API调用';
+            }
+        }
+        
+        async function testStreamingAPI(message) {
+            try {
+                const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': window.location.origin
+                    },
+                    body: JSON.stringify({
+                        model: 'deepseek/deepseek-chat-v3-0324:free',
+                        messages: [
+                            {
+                                role: 'user',
+                                content: message
+                            }
+                        ],
+                        stream: true,
+                        temperature: 0.7,
+                        max_tokens: 200
+                    })
+                });
+                
+                addMessage(`📊 流式API状态: ${response.status}`, 'debug-info');
+                
+                if (!response.ok) {
+                    throw new Error(`流式API失败: ${response.status} ${response.statusText}`);
+                }
+                
+                if (!response.body) {
+                    throw new Error('响应体为空');
+                }
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullContent = '';
+                let chunkCount = 0;
+                
+                addMessage('🌊 开始接收流式数据...', 'debug-info');
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) {
+                        addMessage(`✅ 流式接收完成，共${chunkCount}个数据块`, 'debug-info');
+                        break;
+                    }
+                    
+                    chunkCount++;
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') continue;
+                            
+                            try {
+                                const parsed = JSON.parse(data);
+                                const delta = parsed.choices?.[0]?.delta?.content;
+                                if (delta) {
+                                    fullContent += delta;
+                                }
+                            } catch (e) {
+                                // 忽略解析错误
+                            }
+                        }
+                    }
+                }
+                
+                addMessage(`🌊 流式回复: ${fullContent}`, 'expert-message');
+                
+            } catch (error) {
+                addMessage(`❌ 流式API错误: ${error.message}`, 'error-message');
+                throw error;
+            }
+        }
+        
+        function addMessage(text, className) {
+            const div = document.createElement('div');
+            div.className = `message ${className}`;
+            div.textContent = text;
+            messagesDiv.appendChild(div);
+            div.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

@@ -327,6 +327,7 @@
         
         <div class="config-section">
             <button class="config-toggle" onclick="toggleConfig()">🔧 专家配置管理</button>
+            <button class="config-toggle" onclick="showApiKeySection()" style="margin-left: 10px;">🔑 重新配置API密钥</button>
             <div class="config-panel" id="config-panel">
                 <!-- 专家配置将通过JavaScript动态生成 -->
             </div>
@@ -503,6 +504,14 @@
         
         function hideApiKeySection() {
             apiKeySection.style.display = 'none';
+        }
+
+        function showApiKeySection() {
+            apiKeySection.style.display = 'block';
+            // 清空当前的API密钥
+            apiKeyInput.value = '';
+            // 滚动到API配置区域
+            apiKeySection.scrollIntoView({ behavior: 'smooth' });
         }
         
         function enableChat() {
@@ -693,9 +702,12 @@
             const statusDot = statusElement ? statusElement.querySelector('.status-dot') : null;
 
             // 设置思考状态
-            if (statusDot) {
+            if (statusDot && statusElement) {
                 statusDot.className = 'status-dot thinking';
-                statusElement.querySelector('span').textContent = '思考中...';
+                const statusSpan = statusElement.querySelector('span');
+                if (statusSpan) {
+                    statusSpan.textContent = '思考中...';
+                }
             }
 
             try {
@@ -725,6 +737,13 @@
                 });
 
                 // 调用OpenRouter流式API
+                console.log('调用API:', {
+                    expertName,
+                    model: expert.model,
+                    apiKeyExists: !!apiKey,
+                    messagesCount: messages.length
+                });
+
                 const response = await fetch(openRouterUrl, {
                     method: 'POST',
                     headers: {
@@ -742,14 +761,19 @@
                     })
                 });
 
+                console.log('API响应状态:', response.status, response.statusText);
+
                 if (!response.ok) {
                     throw new Error(`API调用失败: ${response.status} ${response.statusText}`);
                 }
 
                 // 设置流式状态
-                if (statusDot) {
+                if (statusDot && statusElement) {
                     statusDot.className = 'status-dot streaming';
-                    statusElement.querySelector('span').textContent = '实时输出中...';
+                    const statusSpan = statusElement.querySelector('span');
+                    if (statusSpan) {
+                        statusSpan.textContent = '实时输出中...';
+                    }
                 }
 
                 // 添加流式光标
@@ -758,6 +782,12 @@
                 textElement.appendChild(cursor);
 
                 // 处理流式响应
+                console.log('开始处理流式响应:', expertName);
+
+                if (!response.body) {
+                    throw new Error('响应体为空');
+                }
+
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
@@ -787,9 +817,13 @@
                                 if (delta) {
                                     fullContent += delta;
                                     // 移除光标，添加新内容，重新添加光标
-                                    textElement.removeChild(cursor);
+                                    if (cursor && cursor.parentNode === textElement) {
+                                        textElement.removeChild(cursor);
+                                    }
                                     textElement.innerHTML = formatText(fullContent);
-                                    textElement.appendChild(cursor);
+                                    if (cursor) {
+                                        textElement.appendChild(cursor);
+                                    }
                                     scrollToBottom();
                                 }
                             } catch (e) {
@@ -800,10 +834,15 @@
                 }
 
                 // 完成流式输出
-                textElement.removeChild(cursor);
-                if (statusDot) {
+                if (cursor && cursor.parentNode === textElement) {
+                    textElement.removeChild(cursor);
+                }
+                if (statusDot && statusElement) {
                     statusDot.className = 'status-dot completed';
-                    statusElement.querySelector('span').textContent = '完成';
+                    const statusSpan = statusElement.querySelector('span');
+                    if (statusSpan) {
+                        statusSpan.textContent = '完成';
+                    }
                 }
 
                 // 添加到对话历史
@@ -816,10 +855,24 @@
 
             } catch (error) {
                 console.error(`${expertName} 回复失败:`, error);
-                textElement.innerHTML = `<span style="color: #e74c3c;">抱歉，${expertName} 暂时无法回复。错误：${error.message}</span>`;
-                if (statusDot) {
+                console.error('错误详情:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
+
+                let errorMessage = error.message || 'Unknown error';
+                if (error.name === 'TypeError' && !error.message) {
+                    errorMessage = '网络连接错误或API响应格式错误';
+                }
+
+                textElement.innerHTML = `<span style="color: #e74c3c;">抱歉，${expertName} 暂时无法回复。错误：${errorMessage}</span>`;
+                if (statusDot && statusElement) {
                     statusDot.className = 'status-dot error';
-                    statusElement.querySelector('span').textContent = '错误';
+                    const statusSpan = statusElement.querySelector('span');
+                    if (statusSpan) {
+                        statusSpan.textContent = '错误';
+                    }
                 }
             }
         }
@@ -852,6 +905,9 @@
         }
 
         function formatText(text) {
+            if (typeof text !== 'string') {
+                return String(text || '');
+            }
             return text
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\n/g, '<br>')
