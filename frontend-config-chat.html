@@ -195,6 +195,29 @@
             0%, 50% { opacity: 1; }
             51%, 100% { opacity: 0; }
         }
+
+        .status-dot.thinking {
+            background: #f39c12 !important;
+            animation: pulse 1s infinite;
+        }
+
+        .status-dot.streaming {
+            background: #2ecc71 !important;
+            animation: pulse 0.5s infinite;
+        }
+
+        .status-dot.completed {
+            background: #95a5a6 !important;
+        }
+
+        .status-dot.error {
+            background: #e74c3c !important;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
         
         /* 专家颜色主题 */
         .expert-market { background: #e74c3c; border-left-color: #e74c3c; }
@@ -587,13 +610,269 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
         
-        // 简化版的sendMessage实现（演示用）
+        // 完整的sendMessage实现
         async function sendMessage() {
             const message = messageInput.value.trim();
             if (!message || isProcessing || !apiKey || !expertConfig) return;
-            
-            showSuccess('前端配置版本演示 - 配置已加载，可以开始实现完整的对话功能！');
+
+            isProcessing = true;
+            sendButton.disabled = true;
+            sendButton.textContent = '处理中...';
+
+            // 添加用户消息
+            addUserMessage(message);
+            conversationHistory.push({
+                role: 'user',
+                content: message,
+                timestamp: new Date().toISOString()
+            });
+
             messageInput.value = '';
+            adjustTextareaHeight();
+
+            try {
+                // 解析提及的专家
+                const mentionedExperts = extractMentions(message);
+                const expertsToCall = mentionedExperts.length > 0 ? mentionedExperts : getAllExperts();
+
+                // 并发调用所有专家（实时流式输出）
+                await callExpertsStreaming(message, expertsToCall);
+
+                // 最后调用主持人总结
+                if (!mentionedExperts.includes('主持人')) {
+                    await callExpertStreaming(message, '主持人', true);
+                }
+
+            } catch (error) {
+                console.error('处理消息时出错:', error);
+                showError(`处理失败: ${error.message}`);
+            } finally {
+                isProcessing = false;
+                sendButton.disabled = false;
+                sendButton.textContent = '发送';
+            }
+        }
+
+        function extractMentions(text) {
+            const experts = Object.keys(expertConfig.experts);
+            const mentions = [];
+
+            experts.forEach(expert => {
+                if (text.includes(`@${expert}`)) {
+                    mentions.push(expert);
+                }
+            });
+
+            return mentions;
+        }
+
+        function getAllExperts() {
+            return Object.keys(expertConfig.experts).filter(name => name !== '主持人');
+        }
+
+        async function callExpertsStreaming(message, experts) {
+            const promises = experts.map(expertName =>
+                callExpertStreaming(message, expertName, false)
+            );
+
+            await Promise.all(promises);
+        }
+
+        async function callExpertStreaming(message, expertName, isSummary = false) {
+            const expert = expertConfig.experts[expertName];
+            if (!expert) return;
+
+            // 创建专家消息容器
+            const messageId = `expert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const messageElement = createExpertMessageElement(expert, messageId);
+            chatMessages.appendChild(messageElement);
+            scrollToBottom();
+
+            const textElement = messageElement.querySelector('.expert-text');
+            const statusElement = messageElement.querySelector('.expert-status');
+            const statusDot = statusElement ? statusElement.querySelector('.status-dot') : null;
+
+            // 设置思考状态
+            if (statusDot) {
+                statusDot.className = 'status-dot thinking';
+                statusElement.querySelector('span').textContent = '思考中...';
+            }
+
+            try {
+                // 构建消息历史
+                const messages = [
+                    {
+                        role: 'system',
+                        content: expert.systemMessage + '\n\n' + expertConfig.global.systemMessage
+                    }
+                ];
+
+                // 添加对话历史（最近10条）
+                const recentHistory = conversationHistory.slice(-10);
+                recentHistory.forEach(msg => {
+                    messages.push({
+                        role: msg.role,
+                        content: msg.content
+                    });
+                });
+
+                // 添加当前消息
+                messages.push({
+                    role: 'user',
+                    content: isSummary ?
+                        `请作为主持人，总结前面专家们的讨论，并给出最终建议。用户问题：${message}` :
+                        message
+                });
+
+                // 调用OpenRouter流式API
+                const response = await fetch(openRouterUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': window.location.origin,
+                        'X-Title': '前端配置多智能体聊天室'
+                    },
+                    body: JSON.stringify({
+                        model: expert.model,
+                        messages: messages,
+                        stream: true,
+                        temperature: 0.7,
+                        max_tokens: 2000
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API调用失败: ${response.status} ${response.statusText}`);
+                }
+
+                // 设置流式状态
+                if (statusDot) {
+                    statusDot.className = 'status-dot streaming';
+                    statusElement.querySelector('span').textContent = '实时输出中...';
+                }
+
+                // 添加流式光标
+                const cursor = document.createElement('span');
+                cursor.className = 'streaming-cursor';
+                textElement.appendChild(cursor);
+
+                // 处理流式响应
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let fullContent = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // 保留不完整的行
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+
+                            if (data === '[DONE]') {
+                                break;
+                            }
+
+                            try {
+                                const parsed = JSON.parse(data);
+                                const delta = parsed.choices?.[0]?.delta?.content;
+
+                                if (delta) {
+                                    fullContent += delta;
+                                    // 移除光标，添加新内容，重新添加光标
+                                    textElement.removeChild(cursor);
+                                    textElement.innerHTML = formatText(fullContent);
+                                    textElement.appendChild(cursor);
+                                    scrollToBottom();
+                                }
+                            } catch (e) {
+                                console.warn('解析SSE数据失败:', e, data);
+                            }
+                        }
+                    }
+                }
+
+                // 完成流式输出
+                textElement.removeChild(cursor);
+                if (statusDot) {
+                    statusDot.className = 'status-dot completed';
+                    statusElement.querySelector('span').textContent = '完成';
+                }
+
+                // 添加到对话历史
+                conversationHistory.push({
+                    role: 'assistant',
+                    content: fullContent,
+                    expert: expertName,
+                    timestamp: new Date().toISOString()
+                });
+
+            } catch (error) {
+                console.error(`${expertName} 回复失败:`, error);
+                textElement.innerHTML = `<span style="color: #e74c3c;">抱歉，${expertName} 暂时无法回复。错误：${error.message}</span>`;
+                if (statusDot) {
+                    statusDot.className = 'status-dot error';
+                    statusElement.querySelector('span').textContent = '错误';
+                }
+            }
+        }
+
+        function createExpertMessageElement(expert, messageId) {
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message expert-message';
+            messageElement.id = messageId;
+
+            const expertClass = getExpertClass(expert.name);
+
+            messageElement.innerHTML = `
+                <div class="expert-avatar ${expertClass}">${expert.avatar}</div>
+                <div class="expert-content">
+                    <div class="expert-name" style="color: ${expert.color}">
+                        ${expert.name}
+                        <span style="font-size: 12px; font-weight: normal; color: #666;">
+                            (${expert.model})
+                        </span>
+                    </div>
+                    <div class="expert-text"></div>
+                    <div class="expert-status" style="font-size: 12px; color: #666; margin-top: 5px; display: flex; align-items: center; gap: 5px;">
+                        <div class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #ccc;"></div>
+                        <span>准备中...</span>
+                    </div>
+                </div>
+            `;
+
+            return messageElement;
+        }
+
+        function formatText(text) {
+            return text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>')
+                .replace(/(\d+\.)/g, '<br><strong>$1</strong>');
+        }
+
+        function addUserMessage(text) {
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message user-message';
+            messageElement.innerHTML = `
+                <div class="message-content">${escapeHtml(text)}</div>
+            `;
+
+            chatMessages.appendChild(messageElement);
+            scrollToBottom();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
     </script>
 </body>
