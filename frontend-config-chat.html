@@ -689,7 +689,21 @@
 
         async function callExpertStreaming(message, expertName, isSummary = false) {
             const expert = expertConfig.experts[expertName];
-            if (!expert) return;
+            if (!expert) {
+                console.error('专家不存在:', expertName);
+                return;
+            }
+
+            // 验证必要的参数
+            if (!apiKey) {
+                console.error('API密钥未设置');
+                return;
+            }
+
+            if (!message) {
+                console.error('消息为空');
+                return;
+            }
 
             // 创建专家消息容器
             const messageId = `expert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -744,22 +758,54 @@
                     messagesCount: messages.length
                 });
 
-                const response = await fetch(openRouterUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json',
-                        'HTTP-Referer': window.location.origin,
-                        'X-Title': '前端配置多智能体聊天室'
-                    },
-                    body: JSON.stringify({
+                // 验证数据完整性
+                try {
+                    console.log('验证expert对象:', expert);
+                    console.log('验证messages数组:', messages);
+
+                    // 测试JSON序列化
+                    const testBody = JSON.stringify({
                         model: expert.model,
                         messages: messages,
                         stream: true,
                         temperature: 0.7,
                         max_tokens: 2000
-                    })
-                });
+                    });
+                    console.log('JSON序列化成功，长度:', testBody.length);
+                } catch (jsonError) {
+                    console.error('JSON序列化失败:', jsonError);
+                    throw new Error(`数据序列化失败: ${jsonError.message}`);
+                }
+
+                // 构建请求体
+                const requestBody = {
+                    model: expert.model || 'deepseek/deepseek-chat-v3-0324:free',
+                    messages: messages,
+                    stream: true,
+                    temperature: 0.7,
+                    max_tokens: 2000
+                };
+
+                // 构建请求选项
+                const fetchOptions = {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                };
+
+                // 添加可选的headers（避免某些浏览器的CORS问题）
+                try {
+                    fetchOptions.headers['HTTP-Referer'] = window.location.origin;
+                    fetchOptions.headers['X-Title'] = '前端配置多智能体聊天室';
+                } catch (e) {
+                    console.warn('无法设置某些headers:', e);
+                }
+
+                console.log('发送请求到:', openRouterUrl);
+                const response = await fetch(openRouterUrl, fetchOptions);
 
                 console.log('API响应状态:', response.status, response.statusText);
 
