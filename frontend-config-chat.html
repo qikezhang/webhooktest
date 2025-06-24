@@ -49,6 +49,17 @@
             font-size: 14px;
             opacity: 0.9;
         }
+
+        .discussion-phase {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            animation: pulse 2s infinite;
+        }
         
         .config-section {
             background: #f8f9fa;
@@ -323,6 +334,7 @@
         <div class="chat-header">
             <div class="chat-title">⚙️ 前端配置多智能体讨论室</div>
             <div class="chat-subtitle">无需后端API - 完全前端配置的专家团队</div>
+            <div class="discussion-phase" id="discussion-phase">阶段1: 需求澄清</div>
         </div>
         
         <div class="config-section">
@@ -344,16 +356,20 @@
                     <a href="https://openrouter.ai/keys" target="_blank">获取API密钥</a>
                 </p>
             </div>
-            
+
+            <div class="phase-indicator active" id="phase-indicator">
+                📋 阶段1: 需求澄清阶段 - 主持人与您沟通明确具体需求
+            </div>
+
             <div class="message">
                 <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 20px; margin: 20px 0; border-radius: 15px; text-align: center; font-weight: bold;">
-                    🎯 欢迎使用前端配置多智能体讨论室！
+                    🎯 欢迎使用分阶段多智能体讨论室！
                     <br><br>
-                    <strong>特点：</strong><br>
-                    ⚙️ 完全前端配置 - 无需后端API<br>
-                    🔧 实时配置调整 - 随时修改专家设置<br>
-                    💾 本地存储 - 配置自动保存到浏览器<br>
-                    🚀 即开即用 - 无需部署额外服务
+                    <strong>讨论流程：</strong><br>
+                    📋 阶段1: 需求澄清 - 主持人与您深入沟通，明确具体需求<br>
+                    🎯 阶段2: 方案设计 - 各专家基于明确需求提供专业方案<br>
+                    � 阶段3: 执行计划 - 专家团队制定详细的分步执行计划<br>
+                    � 阶段4: 方案总结 - 生成完整的Markdown格式方案文档
                 </div>
             </div>
         </div>
@@ -436,11 +452,30 @@
             }
         };
         
+        // 讨论阶段枚举
+        const DISCUSSION_PHASES = {
+            REQUIREMENT_CLARIFICATION: 1,  // 需求澄清
+            SOLUTION_DESIGN: 2,            // 方案设计
+            EXECUTION_PLANNING: 3,         // 执行计划
+            FINAL_SUMMARY: 4               // 方案总结
+        };
+
+        const PHASE_NAMES = {
+            1: "需求澄清",
+            2: "方案设计",
+            3: "执行计划",
+            4: "方案总结"
+        };
+
         // 全局变量
         let expertConfig = null;
         let apiKey = null;
+        let currentPhase = DISCUSSION_PHASES.REQUIREMENT_CLARIFICATION;
         let isProcessing = false;
         let conversationHistory = [];
+        let currentExpertIndex = 0;
+        let expertsInCurrentPhase = [];
+        let waitingForUserConfirmation = false;
         
         // DOM 元素
         const messageInput = document.getElementById('message-input');
