@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前端配置多智能体讨论室</title>
+    <style>
+        /* 复用之前的样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .chat-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, #4a6fa5 0%, #166ba0 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .chat-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .chat-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .config-section {
+            background: #f8f9fa;
+            border-bottom: 1px solid #e1e8ed;
+            padding: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .config-toggle {
+            background: #4a6fa5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 15px;
+        }
+        
+        .config-panel {
+            display: none;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        
+        .config-panel.active {
+            display: grid;
+        }
+        
+        .expert-config {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .expert-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .expert-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .config-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+        
+        .config-textarea {
+            width: 100%;
+            height: 80px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+            font-size: 11px;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+        
+        .message {
+            margin-bottom: 20px;
+            animation: fadeInUp 0.3s ease-out;
+        }
+        
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .user-message {
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .user-message .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 20px 20px 5px 20px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+        
+        .expert-message {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .expert-content {
+            flex: 1;
+            background: white;
+            border-radius: 20px 20px 20px 5px;
+            padding: 15px 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-left: 4px solid;
+        }
+        
+        .expert-name {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        
+        .expert-text {
+            line-height: 1.6;
+            color: #333;
+            min-height: 20px;
+        }
+        
+        .streaming-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 20px;
+            background: #4a6fa5;
+            animation: blink 1s infinite;
+            margin-left: 2px;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        
+        /* 专家颜色主题 */
+        .expert-market { background: #e74c3c; border-left-color: #e74c3c; }
+        .expert-product { background: #3498db; border-left-color: #3498db; }
+        .expert-tech { background: #2ecc71; border-left-color: #2ecc71; }
+        .expert-legal { background: #9b59b6; border-left-color: #9b59b6; }
+        .expert-content { background: #f39c12; border-left-color: #f39c12; }
+        .expert-finance { background: #1abc9c; border-left-color: #1abc9c; }
+        .expert-capital { background: #34495e; border-left-color: #34495e; }
+        .expert-moderator { background: #e67e22; border-left-color: #e67e22; }
+        
+        .chat-input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #eee;
+        }
+        
+        .chat-input {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end;
+        }
+        
+        #message-input {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e1e8ed;
+            border-radius: 25px;
+            outline: none;
+            font-size: 16px;
+            resize: none;
+            min-height: 50px;
+            max-height: 120px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        
+        #message-input:focus {
+            border-color: #4a6fa5;
+        }
+        
+        #send-button {
+            padding: 15px 25px;
+            background: linear-gradient(135deg, #4a6fa5 0%, #166ba0 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+            min-width: 80px;
+        }
+        
+        #send-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(74, 111, 165, 0.4);
+        }
+        
+        #send-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .api-key-section {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .api-key-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        
+        .success-message {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="chat-title">⚙️ 前端配置多智能体讨论室</div>
+            <div class="chat-subtitle">无需后端API - 完全前端配置的专家团队</div>
+        </div>
+        
+        <div class="config-section">
+            <button class="config-toggle" onclick="toggleConfig()">🔧 专家配置管理</button>
+            <div class="config-panel" id="config-panel">
+                <!-- 专家配置将通过JavaScript动态生成 -->
+            </div>
+        </div>
+        
+        <div class="chat-messages" id="chat-messages">
+            <div class="api-key-section" id="api-key-section">
+                <h3>🔑 OpenRouter API 配置</h3>
+                <p>为了实现真实的流式输出，需要您的OpenRouter API密钥：</p>
+                <input type="password" id="api-key-input" class="api-key-input" placeholder="请输入您的OpenRouter API密钥">
+                <button onclick="saveApiKey()" style="margin-top: 10px; padding: 8px 16px; background: #4a6fa5; color: white; border: none; border-radius: 5px; cursor: pointer;">保存密钥</button>
+                <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                    密钥仅保存在本地浏览器中，不会上传到服务器。
+                    <a href="https://openrouter.ai/keys" target="_blank">获取API密钥</a>
+                </p>
+            </div>
+            
+            <div class="message">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 20px; margin: 20px 0; border-radius: 15px; text-align: center; font-weight: bold;">
+                    🎯 欢迎使用前端配置多智能体讨论室！
+                    <br><br>
+                    <strong>特点：</strong><br>
+                    ⚙️ 完全前端配置 - 无需后端API<br>
+                    🔧 实时配置调整 - 随时修改专家设置<br>
+                    💾 本地存储 - 配置自动保存到浏览器<br>
+                    🚀 即开即用 - 无需部署额外服务
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-input-container">
+            <div class="chat-input">
+                <textarea id="message-input" placeholder="配置API密钥后即可开始对话..." rows="1" disabled></textarea>
+                <button id="send-button" disabled>发送</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 前端专家配置（完全替代Expert-Config-API）
+        const DEFAULT_EXPERT_CONFIG = {
+            global: {
+                systemMessage: "请用中文回复。保持自然、友好的对话风格，要正式并专业，逻辑缜密，不能有遗漏，并突出特色重点。",
+                maxDiscussionRounds: 6,
+                enableRandomOrder: true,
+                moderatorAlwaysLast: true,
+                streamOutput: true
+            },
+            experts: {
+                "市场专家": {
+                    name: "市场专家",
+                    model: "deepseek/deepseek-chat-v3-0324:free",
+                    avatar: "📊",
+                    color: "#e74c3c",
+                    systemMessage: "你是一位资深的市场专家，专注于互联网产品市场分析。你需要提供：1）市场调研：深入研究行业现状、市场规模、增长趋势、用户特征和竞争对手分析；2）市场定位：确定目标市场、用户群体和差异化优势；3）趋势预测：关注行业发展趋势和技术创新，预测市场变化。请以清晰、有条理的方式呈现分析，包含具体数据和明确建议。"
+                },
+                "产品专家": {
+                    name: "产品专家",
+                    model: "deepseek/deepseek-chat-v3-0324:free",
+                    avatar: "🎯",
+                    color: "#3498db",
+                    systemMessage: "你是一位经验丰富的产品专家，擅长互联网产品设计和规划。你需要提供：1）需求分析：梳理业务需求和用户需求，确定核心功能；2）产品设计：进行架构设计、UI/UX设计和交互设计；3）产品规划：制定发展路线图、里程碑和优化策略。请提供详细的产品设计文档和具体的实施建议。"
+                },
+                "技术架构专家": {
+                    name: "技术架构专家",
+                    model: "deepseek/deepseek-chat-v3-0324:free",
+                    avatar: "⚙️",
+                    color: "#2ecc71",
+                    systemMessage: "你是一位专业的技术架构专家，精通互联网产品技术架构。你需要提供：1）架构设计：系统架构、数据库架构、网络架构，确保高可用性和可扩展性；2）技术选型：评估技术栈、开发框架和工具，分析风险和成本；3）技术方案：制定详细实施方案和技术文档。请提供清晰的技术架构图和具体的技术建议。"
+                },
+                "中国法律专家": {
+                    name: "中国法律专家",
+                    model: "deepseek/deepseek-chat-v3-0324:free",
+                    avatar: "⚖️",
+                    color: "#9b59b6",
+                    systemMessage: "你是一位专业的中国法律专家，熟悉互联网相关法律法规。你需要提供：1）法律风险评估：分析业务模式、数据处理、知识产权等法律风险；2）合规建议：确保符合中国法律法规，建立风险防范机制；3）合同审查：审查各类合同，保护合法权益。请提供详细的法律风险报告和合规建议。"
+                },
+                "内容运营专家": {
+                    name: "内容运营专家",
+                    model: "deepseek/deepseek-chat-v3-0324:free",
+                    avatar: "📝",
+                    color: "#f39c12",
+                    systemMessage: "你是一位资深的内容运营专家，擅长互联网产品内容运营。你需要提供：1）内容策略：制定内容类型、主题和发布计划；2）内容创作：指导高质量内容创作和审核；3）推广传播：制定推广计划，提高曝光度；4）社区运营：建立用户社区，促进互动。请提供详细的运营方案和数据分析建议。"
+                },
+                "财税专家": {
+                    name: "财税专家",
+                    model: "deepseek/deepseek-chat-v3-0324:free",
+                    avatar: "💰",
+                    color: "#1abc9c",
+                    systemMessage: "你是一位专业的财税专家，熟悉互联网企业财务管理。你需要提供：1）财务规划：预算编制、成本控制、资金需求预测；2）税务筹划：合理税务规划，降低税务成本；3）风险管理：识别财务风险，制定防范措施。请提供详细的财务规划报告和税务筹划方案。"
+                },
+                "资本融资专家": {
+                    name: "资本融资专家",
+                    model: "deepseek/deepseek-chat-v3-0324:free",
+                    avatar: "💼",
+                    color: "#34495e",
+                    systemMessage: "你是一位专业的资本融资专家，熟悉互联网企业融资。你需要提供：1）融资需求评估：分析资金需求和融资规模；2）融资渠道拓展：天使投资、风险投资、私募股权等；3）融资方案设计：融资结构、条款、估值；4）融资过程管理：商业计划书、尽职调查、合同谈判。请提供详细的融资方案和策略建议。"
+                },
+                "主持人": {
+                    name: "主持人",
+                    model: "deepseek/deepseek-r1-0528:free",
+                    avatar: "🎤",
+                    color: "#e67e22",
+                    systemMessage: "你是讨论主持人和CEO顾问。你需要：1）仔细阅读所有专家回复；2）分析各专家观点和建议；3）结合问题核心需求提供综合总结；4）指出共同点和分歧；5）给出最终建议。同时以马斯克和扎克伯格的视角提供战略建议：创新思维、决策支持、领导力提升。请以专业友好的语调进行总结，提供具体的行动方案。"
+                }
+            }
+        };
+        
+        // 全局变量
+        let expertConfig = null;
+        let apiKey = null;
+        let isProcessing = false;
+        let conversationHistory = [];
+        
+        // DOM 元素
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const chatMessages = document.getElementById('chat-messages');
+        const apiKeySection = document.getElementById('api-key-section');
+        const apiKeyInput = document.getElementById('api-key-input');
+        const configPanel = document.getElementById('config-panel');
+        
+        // OpenRouter API URL
+        const openRouterUrl = 'https://openrouter.ai/api/v1/chat/completions';
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadApiKey();
+            loadExpertConfig();
+            setupEventListeners();
+            adjustTextareaHeight();
+            generateConfigPanel();
+        });
+        
+        function setupEventListeners() {
+            sendButton.addEventListener('click', sendMessage);
+            messageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            messageInput.addEventListener('input', adjustTextareaHeight);
+        }
+        
+        function adjustTextareaHeight() {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
+        }
+        
+        function loadApiKey() {
+            const savedKey = localStorage.getItem('openrouter_api_key');
+            if (savedKey) {
+                apiKey = savedKey;
+                apiKeyInput.value = savedKey;
+                hideApiKeySection();
+                enableChat();
+            }
+        }
+        
+        function saveApiKey() {
+            const key = apiKeyInput.value.trim();
+            if (!key) {
+                showError('请输入有效的API密钥');
+                return;
+            }
+            
+            apiKey = key;
+            localStorage.setItem('openrouter_api_key', key);
+            hideApiKeySection();
+            enableChat();
+            showSuccess('API密钥已保存，现在可以开始对话了！');
+        }
+        
+        function hideApiKeySection() {
+            apiKeySection.style.display = 'none';
+        }
+        
+        function enableChat() {
+            messageInput.disabled = false;
+            sendButton.disabled = false;
+            messageInput.placeholder = '请输入您的问题，专家团队将为您提供建议...';
+        }
+        
+        function loadExpertConfig() {
+            // 从localStorage加载配置，如果没有则使用默认配置
+            const savedConfig = localStorage.getItem('expert_config');
+            if (savedConfig) {
+                try {
+                    expertConfig = JSON.parse(savedConfig);
+                } catch (e) {
+                    console.warn('加载保存的配置失败，使用默认配置');
+                    expertConfig = DEFAULT_EXPERT_CONFIG;
+                }
+            } else {
+                expertConfig = DEFAULT_EXPERT_CONFIG;
+            }
+            console.log('专家配置加载成功:', expertConfig);
+        }
+        
+        function saveExpertConfig() {
+            localStorage.setItem('expert_config', JSON.stringify(expertConfig));
+            showSuccess('专家配置已保存！');
+        }
+        
+        function generateConfigPanel() {
+            if (!expertConfig) return;
+            
+            configPanel.innerHTML = '';
+            
+            Object.entries(expertConfig.experts).forEach(([expertName, expert]) => {
+                const expertDiv = document.createElement('div');
+                expertDiv.className = 'expert-config';
+                expertDiv.innerHTML = `
+                    <div class="expert-header">
+                        <div class="expert-avatar ${getExpertClass(expertName)}">${expert.avatar}</div>
+                        <strong>${expertName}</strong>
+                    </div>
+                    <input type="text" class="config-input" value="${expert.model}" 
+                           onchange="updateExpertConfig('${expertName}', 'model', this.value)" 
+                           placeholder="模型名称">
+                    <textarea class="config-textarea" 
+                              onchange="updateExpertConfig('${expertName}', 'systemMessage', this.value)" 
+                              placeholder="系统提示词">${expert.systemMessage}</textarea>
+                `;
+                configPanel.appendChild(expertDiv);
+            });
+            
+            // 添加保存按钮
+            const saveButton = document.createElement('button');
+            saveButton.textContent = '💾 保存所有配置';
+            saveButton.style.cssText = 'grid-column: 1/-1; padding: 10px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px;';
+            saveButton.onclick = saveExpertConfig;
+            configPanel.appendChild(saveButton);
+        }
+        
+        function updateExpertConfig(expertName, field, value) {
+            if (expertConfig && expertConfig.experts[expertName]) {
+                expertConfig.experts[expertName][field] = value;
+            }
+        }
+        
+        function toggleConfig() {
+            configPanel.classList.toggle('active');
+        }
+        
+        // 其他函数与之前的实现类似，但移除了对外部API的依赖
+        // ... (sendMessage, callExpertStreaming等函数的实现)
+        
+        function getExpertClass(expertName) {
+            const classMap = {
+                '市场专家': 'expert-market',
+                '产品专家': 'expert-product',
+                '技术架构专家': 'expert-tech',
+                '中国法律专家': 'expert-legal',
+                '内容运营专家': 'expert-content',
+                '财税专家': 'expert-finance',
+                '资本融资专家': 'expert-capital',
+                '主持人': 'expert-moderator'
+            };
+            return classMap[expertName] || 'expert-moderator';
+        }
+        
+        function showSuccess(message) {
+            const successElement = document.createElement('div');
+            successElement.className = 'success-message';
+            successElement.textContent = message;
+            chatMessages.appendChild(successElement);
+            scrollToBottom();
+        }
+        
+        function showError(message) {
+            const errorElement = document.createElement('div');
+            errorElement.className = 'error-message';
+            errorElement.textContent = message;
+            chatMessages.appendChild(errorElement);
+            scrollToBottom();
+        }
+        
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // 简化版的sendMessage实现（演示用）
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || isProcessing || !apiKey || !expertConfig) return;
+            
+            showSuccess('前端配置版本演示 - 配置已加载，可以开始实现完整的对话功能！');
+            messageInput.value = '';
+        }
+    </script>
+</body>
+</html>
